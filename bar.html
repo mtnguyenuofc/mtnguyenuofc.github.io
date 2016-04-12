@@ -1,0 +1,407 @@
+<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+<meta content="utf-8" http-equiv="encoding">
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>CPSC 583 Final Project</title>
+    <script type="text/javascript" src="http://d3js.org/d3.v2.min.js"></script>
+<style type="text/css">
+
+body {
+  font: 12px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.x.axis path {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.line {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.plot{
+fill: #fff;
+}
+
+.legend-box {
+  cursor: pointer;  
+}
+
+#mouse-tracker {
+  stroke: #E6E7E8;
+  stroke-width: 1px;
+}
+
+.hover-line { 
+  stroke: #E6E7E8;
+  fill: none;
+  stroke-width: 1px;
+  left: 10px;
+  shape-rendering: crispEdges;
+  opacity: 1e-6;
+}
+
+.hover-text {
+  stroke: none;
+  font-size: 30px;
+  font-weight: bold;
+  fill: #000000;
+}
+
+.tooltip {
+  font-weight: normal;
+}
+
+.country {opacity: 0.5;}
+.country:hover {opacity:1;}
+
+
+</style>
+</head>
+<body>
+  <div>
+      <input type="checkbox" id="bric" onclick="briclight()">G-20</input>
+      <input type="checkbox" id="mist" onclick="mistlight()">MIST</input>
+  </div>
+  <p id="menu"><b>CPSC 583 Final Project</b><br>Select series: <select>
+    <option value="population">Population</option>
+    <option value="children">Average # of Children</option>
+    <option value="life">Life Expectatncy</option>
+    <option value="growth">Growth Rate</option></select>
+
+  <script type="text/javascript">
+// set the stage for the visualization
+    var margin = {top: 20, right: 140, bottom: 30, left: 70},
+        w = 1200 - margin.left - margin.right,
+        h = 800- margin.top - margin.bottom,
+        x = d3.time.scale().range([0, w]),
+        y = d3.scale.linear().range([h, 0]);
+        parseDate = d3.time.format("%Y").parse;
+        
+    var color = d3.scale.category20(); // to generate a different color for each line
+    
+	//defines a function to be used to append the title to the tooltip.  you can set how you want it to display here.
+	var maketip = function (d) {			               
+			   var tip = '<p class="tip3">' + d.name + '<p class="tip1">' + NumbType(d.value) + '</p> <p class="tip3">'+  formatDate(d.date)+'</p>';
+      		   return tip;}
+	
+    // to be used later
+    var countries,
+        filtered,
+        transpose,
+		maxY;
+    
+    
+    // add svg box where viz will go    
+    var svg = d3.select("body").append("svg")
+        .attr("width", w + margin.left + margin.right)
+        .attr("height", h + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+	//make a rectangle so there is something to click on
+svg.append("svg:rect")
+    .attr("width", w)
+    .attr("height", h)
+	.attr("x", 0) 
+    .attr("y", 0)
+    .attr("id", "mouse-tracker")
+    .style("fill", "white")
+    .attr("class", "plot");
+
+ //make a clip path for the graph  
+ var clip = svg.append("svg:clipPath")
+    .attr("id", "clip")
+    .append("svg:rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", w)
+    .attr("height", h); 
+
+    
+    // force data to update when menu is changed    
+    var menu = d3.select("#menu select")
+    .on("change", change);    
+			    
+// put data from csv into countries variable
+//run redraw function that will refresh whenever a new data series is selected 
+d3.csv("data.csv", function(csv) {
+		countries = csv;
+        redraw();
+    });
+
+d3.select(window)
+    .on("keydown", function() { altKey = d3.event.altKey; })
+    .on("keyup", function() { altKey = false; });
+
+var altKey;
+
+// set terms of transition that will take place
+// when a new economic indicator is chosen   
+function change() {
+  clearTimeout(timeout);
+
+  d3.transition()
+      .duration(altKey ? 7500 : 1500)
+      .each(redraw);
+}
+
+// all the meat goes in the redraw function
+function redraw() {
+    
+    // create data nests based on economic indicator (series)
+    var nested = d3.nest()
+		.key(function(d) { return d.indicatorCode; })
+		.map(countries)
+    
+    // get value from menu selection
+    // the option values are set in HTML and correspond
+    //to the [indicatorCode] value we used to nest the data  
+    var series = menu.property("value");
+    
+    // only retrieve data from the selected series, using the nest we just created
+    var data = nested[series];
+    
+    // for object constancy we will need to set "keys", one for each country.
+    // the keyring variable contains only the names of the countries
+    var keyring = d3.keys(data[0]).filter(function(key) { 
+     	    return (key !== "indicatorCode" && key !== "year");
+     	});
+    
+    // get the year and related statistics, map them to each country separately 
+    var transpose = keyring.map(function(name) {
+            return {
+              name: name,
+              values: data.map(function(d) {
+                return {year: parseDate(d.year), stat: +d[name]};
+              })
+            };
+        });
+
+    // set the x and y domains as the max and min
+    // of the related year and statistics, respectively
+   var x = d3.time.scale()
+   .domain([
+    d3.min(transpose, function(c) { return d3.min(c.values, function(v) { return v.year; }); }),
+    d3.max(transpose, function(c) { return d3.max(c.values, function(v) { return v.year; }); })
+  ])
+  		.range([0, w]);
+
+   var  y= d3.scale.sqrt()
+	.domain([
+    d3.min(transpose, function(c) { return d3.min(c.values, function(v) { return v.stat; }); }),
+    d3.max(transpose, function(c) { return d3.max(c.values, function(v) { return v.stat; }); })
+  ])	    .range([h, 0]);
+
+// where the line gets its properties, how it will be interpolated
+    var line = d3.svg.line()
+       .interpolate("basis")
+       .x(function(d) { return x(d.year); })
+       .y(function(d) { return y(d.stat); });
+	   
+	   //define the zoom
+	var zoom = d3.behavior.zoom()
+    	.x(x)
+	    .y(y)
+	    .scaleExtent([1,20])
+    	.on("zoom", zoomed);
+
+	//call the zoom on the SVG
+    //svg.call(zoom);
+  
+	    // define the x axis and its class, append it to svg 
+    var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("bottom")
+       svg.append("svg:g")
+        .attr("class", "x axis");
+
+    // define the y axis and its class, append it to svg
+    var yAxis = d3.svg.axis()
+        .scale(y)
+        .orient("left")
+        svg.append("svg:g")
+        .attr("class", "y axis");
+  
+    // announce to d3 that we will be using something called
+    // "country" that makes use of the transposed data 
+    var country = svg.selectAll(".country")
+      .data(transpose);
+     
+    // create separate groups for each country
+    // assign them a class and individual IDs (for styling) 
+    var countryEnter = country.enter().append("g")
+	  //.attr("clip-path", "url(#clip)")
+      .attr("class", "country")
+      .attr("id", function(d) { return d.name+"-line"; });
+    
+    	//actually append the line to the graph
+	countryEnter.append("path")
+    	.attr("class", "line")
+		.style("pointer-events", "none") // Stop line interferring with cursor
+		.attr("id", function(d) {
+        return "line-" + d.name.replace(" ", "").replace("/", ""); // Give line id of line-(insert issue name, with any spaces replaced with no spaces)
+      })
+		.style("stroke", function(d) { return color(d.name); })
+      	.attr("d", function(d) { 
+        return d.visible ? line(d.values) : null; // If array key "visible" = true then draw line, if not then don't 
+      })
+		.style("stroke", function(d) { return color(d.name); });
+
+
+	  // draw legend
+  var legendSpace = 450 / transpose.length; // 450/number of issues (ex. 40)
+
+ country.append("rect")
+      .attr("width", 10)
+      .attr("height", 10)                                    
+      .attr("x", w + (margin.right/3) - 15) 
+      .attr("y", function (d, i) { return (legendSpace)+i*(legendSpace) - 8; })  // spacing
+      .attr("fill",function(d) {
+        return d.visible ? color(d.name) : "#F1F1F2"; // If array key "visible" = true then color rect, if not then make it grey 
+      })
+      .attr("class", "legend-box")
+
+      .on("click", function(d){ // On click make d.visible 
+        d.visible = !d.visible; // If array key for this data selection is "visible" = true then make it false, if false then make it true
+
+        maxY = findMaxY(transpose); // Find max Y rating value transpose data with "visible"; true
+        y.domain([0,maxY]); // Redefine yAxis domain based on highest y value of transpose data with "visible"; true
+        svg.select(".y.axis")
+          .transition()
+          .call(yAxis);   
+
+        country.select("path")
+          .transition()
+          .attr("d", function(d){
+            return d.visible ? line(d.values) : null; // If d.visible is true then draw line for this d selection
+          })
+
+        country.select("rect")
+          .transition()
+          .attr("fill", function(d) {
+          return d.visible ? color(d.name) : "#F1F1F2";
+        });
+      })
+
+      .on("mouseover", function(d){
+
+        d3.select(this)
+          .transition()
+          .attr("fill", function(d) { return color(d.name); });
+
+        d3.select("#line-" + d.name.replace(" ", "").replace("/", ""))
+          .transition()
+          .style("stroke-width", 2.5);  
+      })
+
+      .on("mouseout", function(d){
+
+        d3.select(this)
+          .transition()
+          .attr("fill", function(d) {
+          return d.visible ? color(d.name) : "#F1F1F2";});
+
+        d3.select("#line-" + d.name.replace(" ", "").replace("/", ""))
+          .transition()
+          .style("stroke-width", 2.5);
+      })
+      
+  country.append("text")
+      .attr("x", w + (margin.right/3)) 
+      .attr("y", function (d, i) { return (legendSpace)+i*(legendSpace); })  // (return (11.25/2 =) 5.625) + i * (5.625) 
+      .text(function(d) { return d.name; });   
+	 
+	 
+	 
+    // set variable for updating visualization
+    var countryUpdate = d3.transition(country);
+	
+    // change values of path to those of the new series
+    countryUpdate.select("path")
+      .attr("d", function(d) { return line(d.values); });
+    
+  // update the axes, though only the y axis will change    
+      d3.transition(svg).select(".y.axis")
+          .call(yAxis);   
+          
+      d3.transition(svg).select(".x.axis")
+            .attr("transform", "translate(0," + h + ")")
+            .call(xAxis);
+			
+      
+		  
+	
+	//define the zoom function
+	function zoomed() {
+ 
+    	svg.select(".x.axis").call(xAxis);
+    	svg.select(".y.axis").call(yAxis);
+
+			
+		svg.selectAll(".line")
+    		.attr("class","line")
+        	.attr("d", function (d) { return line(d.values)});
+	}
+// that concludes redraw()
+}
+
+// automatically change value after a few seconds
+var timeout = setTimeout(function() {
+  menu.property("value", "ENEUSE").node().focus();
+  change();
+}, 7000);
+
+ function findMaxY(data){  // Define function "findMaxY"
+    var maxYValues = data.map(function(d) { 
+      if (d.visible){
+        return d3.max(d.values, function(value) { // Return max rating value
+          return value.stat; })
+      }
+    });
+    return d3.max(maxYValues);
+  }
+  
+// ugly javascript for highlighting the two groups of countries
+function briclight() {
+    var chkbox = document.getElementById("bric");
+    if (chkbox.checked) {
+        document.getElementById("China").style.cssText = "opacity:1;",
+        document.getElementById("Brazil").style.cssText = "opacity:1;",
+        document.getElementById("India").style.cssText = "opacity:1;",
+        document.getElementById("Russia").style.cssText = "opacity:1;"
+    } else { 
+        document.getElementById("China").style.cssText = "",
+        document.getElementById("Brazil").style.cssText = "",
+        document.getElementById("India").style.cssText = "",
+        document.getElementById("Russia").style.cssText = "";
+    }};
+    
+function mistlight() {
+    var chkbox = document.getElementById("mist")
+    if (chkbox.checked) {
+        document.getElementById("Mexico").style.cssText = "opacity:1;",
+        document.getElementById("Indonesia").style.cssText = "opacity:1;",
+        document.getElementById("S Korea").style.cssText = "opacity:1;",
+        document.getElementById("Turkey").style.cssText = "opacity:1;"
+    } else { 
+        document.getElementById("Mexico").style.cssText = "",
+        document.getElementById("Indonesia").style.cssText = "",
+        document.getElementById("S Korea").style.cssText = "",
+        document.getElementById("Turkey").style.cssText = "";
+    }};
+// done!
+	</script>
+  </body>
+</html>
