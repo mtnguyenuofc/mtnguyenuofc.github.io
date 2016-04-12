@@ -134,10 +134,10 @@ svg.append("svg:rect")
     var menu = d3.select("#menu select")
     .on("change", change);    
 			    
-// put data from tsv into countries variable
+// put data from csv into countries variable
 //run redraw function that will refresh whenever a new data series is selected 
-d3.tsv("data.tsv", function(tsv) {
-		countries = tsv;
+d3.csv("data.csv", function(csv) {
+		countries = csv;
         redraw();
     });
 
