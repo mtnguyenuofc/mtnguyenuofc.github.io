@@ -11,7 +11,13 @@
 body {
   font: 12px sans-serif;
 }
-
+.grid .tick {
+    stroke: lightgrey;
+    opacity: 0.7;
+}
+.grid path {
+      stroke-width: 0;
+}
 .axis path,
 .axis line {
   fill: none;
@@ -46,7 +52,7 @@ fill: #fff;
 .hover-line { 
   stroke: #E6E7E8;
   fill: none;
-  stroke-width: 1px;
+  stroke-width: 5px;
   left: 10px;
   shape-rendering: crispEdges;
   opacity: 1e-6;
@@ -54,29 +60,19 @@ fill: #fff;
 
 .hover-text {
   stroke: none;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: bold;
   fill: #000000;
 }
 
-.tooltip {
-   position: absolute;           
-  text-align: center;           
-  width: 60px;                  
-  height: 28px;                 
-  padding: 2px;             
-  font: 12px sans-serif;        
-  background: lightsteelblue;   
-  border: 0px;      
-  border-radius: 8px;           
-  pointer-events: none; 
-}
 .brush .extent {
   stroke: #FFF;
   shape-rendering: crispEdges;
 }
 .country {opacity: 0.3;}
-.country:hover {opacity:1;}
+.country:hover {opacity:1;stroke-width: 10px;  
+font-size: 20px;  font-weight: bold;
+}
 
 
 
@@ -104,7 +100,8 @@ fill: #fff;
         parseDate = d3.time.format("%Y").parse;
 var formatDate = d3.time.format("%y");
 
-    var color = d3.scale.category20(); // to generate a different color for each line
+    // 40 Custom DDV colors 
+var color = d3.scale.ordinal().range(["#48A36D",  "#56AE7C",  "#64B98C", "#72C39B", "#80CEAA", "#80CCB3", "#7FC9BD", "#7FC7C6", "#7EC4CF", "#7FBBCF", "#7FB1CF", "#80A8CE", "#809ECE", "#8897CE", "#8F90CD", "#9788CD", "#9E81CC", "#AA81C5", "#B681BE", "#C280B7", "#CE80B0", "#D3779F", "#D76D8F", "#DC647E", "#E05A6D", "#E16167", "#E26962", "#E2705C", "#E37756", "#E38457", "#E39158", "#E29D58", "#E2AA59", "#E0B15B", "#DFB95C", "#DDC05E", "#DBC75F", "#E3CF6D", "#EAD67C", "#F2DE8A"]); 
     var bisectDate = d3.bisector(function(d) { return d.date; }).left;
 	// set the type of number here, n is a number with a comma, .2% will get you a percent, .2f will get you 2 decimal points
 	var NumbType = d3.format(".2f");
@@ -267,7 +264,7 @@ function redraw() {
   context.append("path") // Path is created using svg.area details
     .attr("class", "area")
     .attr("d", contextArea(transpose[1].values)) // pass first categories data .values to area path generator 
-    .attr("fill", "#F1F1F2");
+    .attr("fill", "#484848");
     
   //append the brush for the selection of subsection  
   context.append("g")
@@ -275,7 +272,7 @@ function redraw() {
     .call(brush)
     .selectAll("rect")
     .attr("height", height2) // Make brush rects same height 
-      .attr("fill", "#E6E7E8");  
+      .attr("fill", "#000000");  
   //end slider part-----------------------------------------------------------------------------------
 // where the line gets its properties, how it will be interpolated
     var line = d3.svg.line()
@@ -447,6 +444,7 @@ function redraw() {
 
     country.select("path") // Redraw lines based on brush xAxis scale and domain
       .transition()
+
       .attr("d", function(d){
           return d.visible ? line(d.values) : null; // If d.visible is true then draw line for this d selection
       });
